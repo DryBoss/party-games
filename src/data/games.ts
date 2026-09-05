@@ -23,11 +23,11 @@ export const GAMES: GameInfo[] = [
     accent: 'coral',
   },
   {
-    id: 'secret-word',
-    name: 'Secret Word',
-    tagline: 'One player knows the word. Everyone else is guessing.',
-    minPlayers: 3,
-    maxPlayers: 10,
+    id: 'hangman-friends',
+    name: 'Hangman Friends',
+    tagline: 'Pick a secret word, guess it letter by letter, judge if it counts.',
+    minPlayers: 2,
+    maxPlayers: 12,
     accent: 'lime',
   },
   {

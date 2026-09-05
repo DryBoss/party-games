@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import ModeSelectScreen from './screens/ModeSelectScreen';
 import PlayersScreen from './screens/PlayersScreen';
 import HotspotLobbyScreen from './screens/HotspotLobbyScreen';
@@ -7,12 +7,24 @@ import GameSelectScreen from './screens/GameSelectScreen';
 import SplitOrStealSetupScreen from './screens/SplitOrStealSetupScreen';
 import SplitOrStealLocalPlay from './screens/SplitOrStealLocalPlay';
 import SplitOrStealMultiplayer from './screens/SplitOrStealMultiplayer';
+import HangmanSetupScreen from './screens/HangmanSetupScreen';
+import HangmanLocalPlay from './screens/HangmanLocalPlay';
+import HangmanMultiplayer from './screens/HangmanMultiplayer';
 import { PlayersProvider, usePlayers } from './state/PlayersContext';
 import { useOnlineRoom } from './lib/partykitClient';
 import { useHotspotHost, useHotspotGuest } from './lib/hotspotTransport';
 import { getOnlineSession, clearOnlineSession } from './lib/session';
 import { applyGameEvent, generateSchedule } from './games/splitOrSteal';
 import type { SplitOrStealEvent, SplitOrStealState } from './games/splitOrSteal';
+import {
+  initState as initHangman,
+  reduce as reduceHangman,
+  maskForBroadcast,
+  toEngineSettings,
+  AUTO_ADVANCE_ACTION_FOR_PHASE,
+  DEFAULT_SETTINGS as HANGMAN_DEFAULT_SETTINGS,
+} from './games/hangman';
+import type { HangmanAction, HangmanFullSettings, HangmanState } from './games/hangman';
 import type { RoomMode } from './types/room';
 
 type AppScreen =
@@ -22,7 +34,9 @@ type AppScreen =
   | 'online-lobby'
   | 'game-select'
   | 'split-or-steal-setup'
-  | 'split-or-steal-play';
+  | 'split-or-steal-play'
+  | 'hangman-setup'
+  | 'hangman-play';
 
 function AppShell() {
   const [screen, setScreen] = useState<AppScreen>('mode-select');
@@ -126,13 +140,89 @@ function AppShell() {
     [sendGameMessage],
   );
 
+  // --- Hangman Friends state (multiplayer only). The host keeps the one
+  // true (unmasked) state in a ref; `activeHangman` is always the masked
+  // view, rendered by host and guests alike — mirrors the original repo's
+  // useLanHost/useOnlineAdapter pattern exactly. ---
+  const hangmanTrueStateRef = useRef<HangmanState | null>(null);
+  const [activeHangman, setActiveHangman] = useState<HangmanState | null>(null);
+  const [hangmanSeatIds, setHangmanSeatIds] = useState<string[] | null>(null);
+  const [hangmanSettings, setHangmanSettings] = useState<HangmanFullSettings | null>(null);
+
+  const applyHangmanAction = useCallback(
+    (action: HangmanAction, seatIndex: number | null) => {
+      const trueState = hangmanTrueStateRef.current;
+      const seatCount = hangmanSeatIds?.length ?? 0;
+      if (!trueState || !seatCount) return;
+      const { state: next, error } = reduceHangman(trueState, action, { seatIndex, playerCount: seatCount });
+      if (error) return;
+      hangmanTrueStateRef.current = next;
+      const masked = maskForBroadcast(next);
+      setActiveHangman(masked);
+      sendGameMessage({
+        type: 'hangman:state',
+        maskedState: masked,
+        seatIds: hangmanSeatIds,
+        minWordLength: hangmanSettings?.minWordLength ?? HANGMAN_DEFAULT_SETTINGS.minWordLength,
+        maxWordLength: hangmanSettings?.maxWordLength ?? HANGMAN_DEFAULT_SETTINGS.maxWordLength,
+      });
+    },
+    [hangmanSeatIds, hangmanSettings, sendGameMessage],
+  );
+
+  const dispatchHangman = useCallback(
+    (action: HangmanAction) => {
+      if (isHost) {
+        const mySeat = hangmanSeatIds && myId ? hangmanSeatIds.indexOf(myId) : -1;
+        applyHangmanAction(action, mySeat);
+      } else {
+        sendGameMessage({ type: 'hangman:action', action, playerId: myId });
+      }
+    },
+    [isHost, hangmanSeatIds, myId, applyHangmanAction, sendGameMessage],
+  );
+
+  // Host: collect private action submissions from guests.
+  useEffect(() => {
+    if (!isHost || (mode !== 'hotspot' && mode !== 'online')) return;
+    return onGameMessage((data) => {
+      const msg = data as { type?: string; action?: HangmanAction; playerId?: string };
+      if (msg.type !== 'hangman:action' || !msg.action || !msg.playerId || !hangmanSeatIds) return;
+      const seatIndex = hangmanSeatIds.indexOf(msg.playerId);
+      if (seatIndex === -1) return;
+      applyHangmanAction(msg.action, seatIndex);
+    });
+  }, [isHost, mode, onGameMessage, hangmanSeatIds, applyHangmanAction]);
+
+  // Host: turn-deadline watchdog — same idea as the original repo's
+  // useLanHost, just scheduled locally instead of against a native socket
+  // server. Keeps the game moving if someone goes AFK.
+  useEffect(() => {
+    if (!isHost || (mode !== 'hotspot' && mode !== 'online')) return;
+    if (!activeHangman?.turnDeadline) return;
+    const actionType = AUTO_ADVANCE_ACTION_FOR_PHASE[activeHangman.phase];
+    if (!actionType) return;
+    const msRemaining = activeHangman.turnDeadline - Date.now();
+    const timer = setTimeout(
+      () => applyHangmanAction({ type: actionType }, null),
+      Math.max(0, msRemaining),
+    );
+    return () => clearTimeout(timer);
+  }, [isHost, mode, activeHangman?.turnDeadline, activeHangman?.phase, applyHangmanAction]);
+
   // Guests (and host, harmlessly — it never receives its own broadcasts):
-  // apply incoming game-state events so `activeGame` always reflects what
-  // the host last broadcast, and jump to the game screen when one starts.
+  // apply incoming game-state events so local state always reflects what
+  // the host last broadcast, and jump to the right game screen when one starts.
   useEffect(() => {
     if (mode !== 'hotspot' && mode !== 'online') return;
     return onGameMessage((data) => {
-      const msg = data as { type?: string };
+      const msg = data as {
+        type?: string;
+        maskedState?: HangmanState;
+        seatIds?: string[];
+        minWordLength?: number;
+        maxWordLength?: number;
+      };
       if (
         msg.type === 'game-start' ||
         msg.type === 'match-advance' ||
@@ -141,6 +231,15 @@ function AppShell() {
       ) {
         setActiveGame((prev) => applyGameEvent(prev, data as SplitOrStealEvent));
         if (msg.type === 'game-start') setScreen('split-or-steal-play');
+      } else if (msg.type === 'hangman:state' && msg.maskedState && msg.seatIds) {
+        setHangmanSeatIds(msg.seatIds);
+        setActiveHangman(msg.maskedState);
+        setHangmanSettings((prev) => ({
+          ...(prev ?? HANGMAN_DEFAULT_SETTINGS),
+          minWordLength: msg.minWordLength ?? HANGMAN_DEFAULT_SETTINGS.minWordLength,
+          maxWordLength: msg.maxWordLength ?? HANGMAN_DEFAULT_SETTINGS.maxWordLength,
+        }));
+        setScreen('hangman-play');
       }
     });
   }, [mode, onGameMessage]);
@@ -164,18 +263,29 @@ function AppShell() {
     hotspotGuest.reset();
     setReconnecting(false);
     setActiveGame(null);
+    hangmanTrueStateRef.current = null;
+    setActiveHangman(null);
+    setHangmanSeatIds(null);
+    setHangmanSettings(null);
     setMode(null);
     setScreen('mode-select');
   };
 
   const handleExitGame = () => {
     setActiveGame(null);
+    hangmanTrueStateRef.current = null;
+    setActiveHangman(null);
+    setHangmanSeatIds(null);
     setScreen('game-select');
   };
 
   const handleSelectGame = (gameId: string) => {
     if (gameId === 'split-or-steal') {
       setScreen('split-or-steal-setup');
+      return;
+    }
+    if (gameId === 'hangman-friends') {
+      setScreen('hangman-setup');
       return;
     }
     // Other games aren't built yet — this is the plumbing a real game
@@ -202,6 +312,43 @@ function AppShell() {
   const handlePlayAgainMultiplayer = () => {
     const schedule = generateSchedule(roomPlayers, lastRounds);
     dispatchAsHost({ type: 'game-start', schedule });
+  };
+
+  const handleStartHangman = (settings: HangmanFullSettings) => {
+    setHangmanSettings(settings);
+    if (mode === 'single_device') {
+      setScreen('hangman-play');
+      return;
+    }
+    const seatIds = roomPlayers.map((p) => p.id);
+    const initial = initHangman(seatIds.length, toEngineSettings(settings));
+    hangmanTrueStateRef.current = initial;
+    setHangmanSeatIds(seatIds);
+    const masked = maskForBroadcast(initial);
+    setActiveHangman(masked);
+    sendGameMessage({
+      type: 'hangman:state',
+      maskedState: masked,
+      seatIds,
+      minWordLength: settings.minWordLength,
+      maxWordLength: settings.maxWordLength,
+    });
+    setScreen('hangman-play');
+  };
+
+  const handlePlayAgainHangman = () => {
+    if (!hangmanSeatIds || !hangmanSettings) return;
+    const initial = initHangman(hangmanSeatIds.length, toEngineSettings(hangmanSettings));
+    hangmanTrueStateRef.current = initial;
+    const masked = maskForBroadcast(initial);
+    setActiveHangman(masked);
+    sendGameMessage({
+      type: 'hangman:state',
+      maskedState: masked,
+      seatIds: hangmanSeatIds,
+      minWordLength: hangmanSettings.minWordLength,
+      maxWordLength: hangmanSettings.maxWordLength,
+    });
   };
 
   switch (screen) {
@@ -270,6 +417,45 @@ function AppShell() {
           onGameMessage={onGameMessage}
           onPlayAgain={handlePlayAgainMultiplayer}
           onExit={handleExitGame}
+        />
+      );
+    case 'hangman-setup':
+      return (
+        <HangmanSetupScreen
+          players={mode === 'single_device' ? devicePlayers : roomPlayers}
+          onBack={() => setScreen('game-select')}
+          onStart={handleStartHangman}
+        />
+      );
+    case 'hangman-play':
+      if (mode === 'single_device') {
+        return (
+          <HangmanLocalPlay
+            players={devicePlayers}
+            settings={hangmanSettings ?? HANGMAN_DEFAULT_SETTINGS}
+            onExit={handleExitGame}
+          />
+        );
+      }
+      if (!activeHangman || !hangmanSeatIds) {
+        return (
+          <div className="flex min-h-screen items-center justify-center bg-cream">
+            <p className="text-ink/50">Loading game…</p>
+          </div>
+        );
+      }
+      return (
+        <HangmanMultiplayer
+          state={activeHangman}
+          seatIds={hangmanSeatIds}
+          myId={myId}
+          isHost={isHost}
+          players={roomPlayers}
+          minWordLength={hangmanSettings?.minWordLength ?? HANGMAN_DEFAULT_SETTINGS.minWordLength}
+          maxWordLength={hangmanSettings?.maxWordLength ?? HANGMAN_DEFAULT_SETTINGS.maxWordLength}
+          dispatch={dispatchHangman}
+          onExit={handleExitGame}
+          onPlayAgain={handlePlayAgainHangman}
         />
       );
     case 'game-select':
