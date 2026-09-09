@@ -86,7 +86,7 @@ export default function SplitOrStealLocalPlay({
   if (phase === 'finished') {
     const ranked = [...players].sort((a, b) => (scores[b.id] ?? 0) - (scores[a.id] ?? 0));
     return (
-      <div className="flex min-h-screen flex-col items-center bg-cream px-6 py-16">
+      <div key="finished" className="flex min-h-screen flex-col items-center bg-cream px-6 py-16 animate-enter">
         <div className="w-full max-w-md">
           <BackButton label="Back to games" onClick={onExit} />
           <p className="mt-6 font-display text-lg font-semibold text-coral">Split or Steal</p>
@@ -95,7 +95,8 @@ export default function SplitOrStealLocalPlay({
             {ranked.map((p, i) => (
               <li
                 key={p.id}
-                className="flex items-center justify-between border-[3px] border-ink bg-paper px-4 py-3 shadow-[4px_4px_0_0_var(--color-ink)]"
+                className="flex items-center justify-between border-[3px] border-ink bg-paper px-4 py-3 shadow-[4px_4px_0_0_var(--color-ink)] animate-stagger"
+                style={{ '--stagger-index': i } as React.CSSProperties}
               >
                 <span className="font-medium text-ink">
                   {i + 1}. {p.name}
@@ -125,7 +126,7 @@ export default function SplitOrStealLocalPlay({
 
   if (phase === 'result' && lastResult) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-cream px-6 py-16">
+      <div key="result" className="flex min-h-screen flex-col items-center justify-center bg-cream px-6 py-16 animate-enter">
         <div className="w-full max-w-md text-center">
           <p className="font-display text-lg font-semibold text-coral">Result</p>
           <div className="mt-6 flex items-center justify-center gap-6">
@@ -157,7 +158,7 @@ export default function SplitOrStealLocalPlay({
 
   if (phase === 'choose') {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-cream px-6 py-16">
+      <div key="choose" className="flex min-h-screen flex-col items-center justify-center bg-cream px-6 py-16 animate-enter">
         <div className="w-full max-w-md text-center">
           <p className="font-display text-lg font-semibold text-coral">{chooserName}'s turn</p>
           <h1 className="mt-2 font-display text-3xl font-bold text-ink">Split or Steal?</h1>
@@ -186,7 +187,7 @@ export default function SplitOrStealLocalPlay({
 
   // phase === 'pass'
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-cream px-6 py-16">
+    <div key="pass" className="flex min-h-screen flex-col items-center justify-center bg-cream px-6 py-16 animate-enter">
       <div className="w-full max-w-md text-center">
         <p className="text-sm font-medium text-ink/50">
           Match {index + 1} of {schedule.length}
@@ -223,7 +224,7 @@ function ResultCard({
   points: number;
 }) {
   return (
-    <div className="flex flex-col items-center gap-2 border-[3px] border-ink bg-paper px-5 py-4 shadow-[4px_4px_0_0_var(--color-ink)]">
+    <div className="flex flex-col items-center gap-2 border-[3px] border-ink bg-paper px-5 py-4 shadow-[4px_4px_0_0_var(--color-ink)] animate-pop">
       {choice === 'split' ? (
         <HandCoins className="h-6 w-6 text-ink" strokeWidth={2} />
       ) : (

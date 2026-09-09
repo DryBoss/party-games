@@ -142,6 +142,16 @@ export function useHotspotHost() {
     });
   }, []);
 
+  /** Send to exactly one connected guest — for secrets that shouldn't go to
+   * everyone (e.g. a Werewolf player's own role). Since this is already a
+   * star topology, each guest's channel is inherently private to them. */
+  const sendTo = useCallback((peerId: string, data: unknown) => {
+    const conn = connectionsRef.current.get(peerId);
+    if (conn?.channel.readyState === 'open') {
+      conn.channel.send(JSON.stringify(data));
+    }
+  }, []);
+
   const reset = useCallback(() => {
     connectionsRef.current.forEach(({ pc }) => pc.close());
     connectionsRef.current.clear();
@@ -163,6 +173,7 @@ export function useHotspotHost() {
     generateInviteCode,
     completeInvite,
     broadcast,
+    sendTo,
     onEvent,
     reset,
   };

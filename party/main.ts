@@ -69,6 +69,17 @@ export default class GameRoom implements Party.Server {
       return;
     }
 
+    // A host-originated 'whisper-to' is delivered to exactly one other
+    // player — for secrets that shouldn't go to everyone (e.g. a Werewolf
+    // player's own role, or a Seer's private inspection result).
+    if (msg.type === 'whisper-to' && sender.id === this.hostId) {
+      const { targetId, payload } = msg as { targetId?: string; payload?: unknown };
+      if (typeof targetId === 'string' && payload !== undefined) {
+        this.room.getConnection(targetId)?.send(JSON.stringify(payload));
+      }
+      return;
+    }
+
     // Anything else is a game event. The host is authoritative and
     // broadcasts state to everyone; regular players can only whisper
     // privately to the host (e.g. a secret choice in a game) so it's never

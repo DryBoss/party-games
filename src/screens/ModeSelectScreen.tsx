@@ -40,7 +40,7 @@ interface ModeSelectScreenProps {
 
 export default function ModeSelectScreen({ onSelect }: ModeSelectScreenProps) {
   return (
-    <div className="flex min-h-screen flex-col items-center bg-cream px-6 py-16">
+    <div className="flex min-h-screen flex-col items-center bg-cream px-6 py-16 animate-enter">
       <div className="w-full max-w-3xl">
         <p className="font-display text-lg font-semibold text-coral">party-hub</p>
 
@@ -55,15 +55,20 @@ export default function ModeSelectScreen({ onSelect }: ModeSelectScreenProps) {
         </p>
 
         <div className="mt-12 grid grid-cols-1 gap-8 sm:grid-cols-3">
-          {ROOM_MODES.map((room) => (
-            <ModeCard
+          {ROOM_MODES.map((room, i) => (
+            <div
               key={room.mode}
-              icon={room.icon}
-              title={room.title}
-              description={room.description}
-              rotate={room.rotate}
-              onSelect={() => onSelect(room.mode)}
-            />
+              className="animate-stagger"
+              style={{ '--stagger-index': i } as React.CSSProperties}
+            >
+              <ModeCard
+                icon={room.icon}
+                title={room.title}
+                description={room.description}
+                rotate={room.rotate}
+                onSelect={() => onSelect(room.mode)}
+              />
+            </div>
           ))}
         </div>
       </div>

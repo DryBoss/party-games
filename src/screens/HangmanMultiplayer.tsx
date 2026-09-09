@@ -57,7 +57,7 @@ export default function HangmanMultiplayer({
         onClick={() => setShowStandings(false)}
       >
         <div
-          className="w-full max-w-xs border-[3px] border-ink bg-paper p-5 shadow-[6px_6px_0_0_var(--color-ink)]"
+          className="w-full max-w-xs border-[3px] border-ink bg-paper p-5 shadow-[6px_6px_0_0_var(--color-ink)] animate-pop"
           onClick={(e) => e.stopPropagation()}
         >
           <p className="font-display text-lg font-bold text-ink">Standings</p>
@@ -83,16 +83,20 @@ export default function HangmanMultiplayer({
   // --- finished ---
   if (state.phase === 'finished') {
     return (
-      <div className="flex min-h-screen flex-col items-center bg-cream px-6 py-16">
+      <div key="finished" className="flex min-h-screen flex-col items-center bg-cream px-6 py-16 animate-enter">
         <div className="w-full max-w-md text-center">
           <BackButton label="Back to games" onClick={onExit} />
-          <Star className="mx-auto mt-8 h-10 w-10 text-coral" fill="currentColor" />
+          <Star className="mx-auto mt-8 h-10 w-10 text-coral animate-pop" fill="currentColor" />
           <h1 className="mt-4 font-display text-3xl font-bold text-ink">
             {nameOf(state.winnerIndex ?? 0)} wins!
           </h1>
           <ul className="mt-6 flex flex-col gap-2">
             {leaderboard().map((p, i) => (
-              <li key={p.name} className="flex items-center justify-between border-[2px] border-ink bg-paper px-4 py-2">
+              <li
+                key={p.name}
+                className="flex items-center justify-between border-[2px] border-ink bg-paper px-4 py-2 animate-stagger"
+                style={{ '--stagger-index': i } as React.CSSProperties}
+              >
                 <span className="text-ink">#{i + 1} {p.name}</span>
                 <span className="font-display font-bold text-ink">{p.points} pts</span>
               </li>
@@ -127,7 +131,7 @@ export default function HangmanMultiplayer({
   if (state.phase === 'select') {
     const isMe = mySeat === state.selectorIndex;
     return (
-      <div className="flex min-h-screen flex-col items-center bg-cream px-6 py-16">
+      <div key="select" className="flex min-h-screen flex-col items-center bg-cream px-6 py-16 animate-enter">
         <div className="w-full max-w-md">
           <div className="flex justify-end">
             <StandingsButton />
@@ -156,7 +160,7 @@ export default function HangmanMultiplayer({
     const isMe = mySeat === state.guesserIndex;
     const isFirstGuesser = state.guessedLetters.length === 0;
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-cream px-6 py-16">
+      <div key={`pass-${state.turnSeq}`} className="flex min-h-screen flex-col items-center justify-center bg-cream px-6 py-16 animate-enter">
         <div className="w-full max-w-md text-center">
           <ArrowRight className="mx-auto h-8 w-8 text-coral" />
           <p className="mt-4 text-sm font-medium text-ink/60">{isMe ? 'Your turn is up next' : 'Up next'}</p>
@@ -186,7 +190,7 @@ export default function HangmanMultiplayer({
   if (state.phase === 'guess') {
     const isMe = mySeat === state.guesserIndex;
     return (
-      <div className="flex min-h-screen flex-col items-center bg-cream px-6 py-10">
+      <div key={`guess-${state.turnSeq}`} className="flex min-h-screen flex-col items-center bg-cream px-6 py-10 animate-enter">
         <div className="w-full max-w-md">
           <div className="flex items-center justify-between">
             <StandingsButton />
@@ -231,10 +235,10 @@ export default function HangmanMultiplayer({
       .sort((a, b) => b.delta - a.delta);
 
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-cream px-6 py-16">
+      <div key="judge" className="flex min-h-screen flex-col items-center justify-center bg-cream px-6 py-16 animate-enter">
         <div className="w-full max-w-md text-center">
           <p className="font-display text-lg font-semibold text-coral">Was this a fair word?</p>
-          <p className="mt-2 font-display text-3xl font-bold tracking-wide text-ink">{state.word?.join('')}</p>
+          <p className="mt-2 font-display text-3xl font-bold tracking-wide text-ink animate-pop">{state.word?.join('')}</p>
           <p className="mt-3 text-sm text-ink/70">
             Check it's spelled correctly and it's a real, appropriate word. If rejected, nobody scores this round.
           </p>
@@ -292,7 +296,7 @@ export default function HangmanMultiplayer({
     .sort((a, b) => b.delta - a.delta);
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-cream px-6 py-16">
+    <div key={`summary-${state.wordsPlayed}`} className="flex min-h-screen flex-col items-center justify-center bg-cream px-6 py-16 animate-enter">
       <div className="w-full max-w-md text-center">
         {state.roundVoided ? (
           <p className="font-display text-2xl font-bold text-coral">Word rejected</p>
@@ -301,7 +305,7 @@ export default function HangmanMultiplayer({
             <Star className="h-6 w-6 text-coral" fill="currentColor" /> Solved!
           </p>
         )}
-        <p className="mt-2 font-display text-3xl font-bold tracking-wide text-ink">{state.word?.join('')}</p>
+        <p className="mt-2 font-display text-3xl font-bold tracking-wide text-ink animate-pop">{state.word?.join('')}</p>
         {state.roundVoided && <p className="mt-2 text-sm text-ink/60">No points were awarded this round.</p>}
         {!state.roundVoided && breakdown.length > 0 && (
           <ul className="mt-6 flex flex-col gap-1.5">
@@ -321,7 +325,11 @@ export default function HangmanMultiplayer({
         </p>
         <ul className="mt-2 flex flex-col gap-2">
           {leaderboard().map((p, i) => (
-            <li key={p.name} className="flex items-center justify-between border-[2px] border-ink bg-paper px-3 py-2 text-sm">
+            <li
+              key={p.name}
+              className="flex items-center justify-between border-[2px] border-ink bg-paper px-3 py-2 text-sm animate-stagger"
+              style={{ '--stagger-index': i } as React.CSSProperties}
+            >
               <span className="text-ink">#{i + 1} {p.name}</span>
               <span className="font-bold text-ink">{p.points} pts</span>
             </li>
@@ -384,7 +392,7 @@ function WordSelectForm({
         }}
         onKeyDown={(e) => e.key === 'Enter' && submit()}
       />
-      <div className="mt-2 h-5 text-sm text-coral">{touched && error ? error : '\u00A0'}</div>
+      <div className={`mt-2 h-5 text-sm text-coral ${touched && error ? 'animate-shake' : ''}`}>{touched && error ? error : '\u00A0'}</div>
       <button
         type="button"
         onClick={submit}

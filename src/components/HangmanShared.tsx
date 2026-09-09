@@ -74,8 +74,8 @@ export function HangmanKeyboard({
                 className={`
                   flex h-9 w-7 items-center justify-center border-[2px] border-ink text-sm font-semibold
                   sm:h-10 sm:w-8
-                  ${guessed ? (correct ? 'bg-lime text-ink' : 'bg-ink/10 text-ink/30') : 'bg-paper text-ink hover:-translate-y-0.5'}
-                  disabled:cursor-not-allowed transition-transform
+                  ${guessed ? (correct ? 'bg-lime text-ink animate-pop' : 'bg-ink/10 text-ink/30 animate-pop') : 'bg-paper text-ink hover:-translate-y-0.5'}
+                  disabled:cursor-not-allowed transition-all
                 `}
               >
                 {key}
@@ -128,7 +128,7 @@ export function HangmanTimer({
 
   return (
     <span
-      className={`font-display text-lg font-bold ${lowOnTime ? 'text-coral' : 'text-ink'}`}
+      className={`font-display text-lg font-bold ${lowOnTime ? 'text-coral animate-pulse-soft' : 'text-ink'}`}
     >
       {remaining == null ? '∞' : `${remaining}s`}
     </span>

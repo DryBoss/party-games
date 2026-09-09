@@ -77,7 +77,7 @@ export default function HangmanLocalPlay({ players, settings, onExit }: HangmanL
   // --- finished ---
   if (state.phase === 'finished') {
     return (
-      <div className="flex min-h-screen flex-col items-center bg-cream px-6 py-16">
+      <div key="finished" className="flex min-h-screen flex-col items-center bg-cream px-6 py-16 animate-enter">
         <div className="w-full max-w-md text-center">
           <BackButton label="Back to games" onClick={onExit} />
           <Star className="mx-auto mt-8 h-10 w-10 text-coral" fill="currentColor" />
@@ -132,7 +132,7 @@ export default function HangmanLocalPlay({ players, settings, onExit }: HangmanL
   if (state.phase === 'pass') {
     const isFirstGuesser = state.guessedLetters.length === 0;
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-cream px-6 py-16">
+      <div key={`pass-${state.turnSeq}`} className="flex min-h-screen flex-col items-center justify-center bg-cream px-6 py-16 animate-enter">
         <div className="w-full max-w-md text-center">
           <ArrowRight className="mx-auto h-8 w-8 text-coral" />
           <p className="mt-4 text-sm font-medium text-ink/60">Up next</p>
@@ -155,7 +155,7 @@ export default function HangmanLocalPlay({ players, settings, onExit }: HangmanL
   // --- guess ---
   if (state.phase === 'guess') {
     return (
-      <div className="flex min-h-screen flex-col items-center bg-cream px-6 py-10">
+      <div key={`guess-${state.turnSeq}`} className="flex min-h-screen flex-col items-center bg-cream px-6 py-10 animate-enter">
         <div className="w-full max-w-md">
           <div className="flex items-center justify-between">
             <StandingsButton />
@@ -192,10 +192,10 @@ export default function HangmanLocalPlay({ players, settings, onExit }: HangmanL
       .filter((e) => e.delta !== 0)
       .sort((a, b) => b.delta - a.delta);
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-cream px-6 py-16">
+      <div key="judge" className="flex min-h-screen flex-col items-center justify-center bg-cream px-6 py-16 animate-enter">
         <div className="w-full max-w-md text-center">
           <p className="font-display text-lg font-semibold text-coral">Was this a fair word?</p>
-          <p className="mt-2 font-display text-3xl font-bold tracking-wide text-ink">
+          <p className="mt-2 font-display text-3xl font-bold tracking-wide text-ink animate-pop">
             {state.word?.join('')}
           </p>
           <p className="mt-3 text-sm text-ink/70">
@@ -243,7 +243,7 @@ export default function HangmanLocalPlay({ players, settings, onExit }: HangmanL
     .sort((a, b) => b.delta - a.delta);
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-cream px-6 py-16">
+    <div key={`summary-${state.wordsPlayed}`} className="flex min-h-screen flex-col items-center justify-center bg-cream px-6 py-16 animate-enter">
       <div className="w-full max-w-md text-center">
         {state.roundVoided ? (
           <p className="font-display text-2xl font-bold text-coral">Word rejected</p>
@@ -252,7 +252,7 @@ export default function HangmanLocalPlay({ players, settings, onExit }: HangmanL
             <Star className="h-6 w-6 text-coral" fill="currentColor" /> Solved!
           </p>
         )}
-        <p className="mt-2 font-display text-3xl font-bold tracking-wide text-ink">
+        <p className="mt-2 font-display text-3xl font-bold tracking-wide text-ink animate-pop">
           {state.word?.join('')}
         </p>
         {state.roundVoided && <p className="mt-2 text-sm text-ink/60">No points were awarded this round.</p>}
@@ -322,7 +322,7 @@ function WordSelectScreen({
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center bg-cream px-6 py-16">
+    <div className="flex min-h-screen flex-col items-center bg-cream px-6 py-16 animate-enter">
       <div className="w-full max-w-md">
         <div className="flex justify-end">{standings}</div>
         <div className="mt-6 text-center">
@@ -344,7 +344,7 @@ function WordSelectScreen({
             }}
             onKeyDown={(e) => e.key === 'Enter' && submit()}
           />
-          <div className="mt-2 h-5 text-sm text-coral">{touched && error ? error : '\u00A0'}</div>
+          <div className={`mt-2 h-5 text-sm text-coral ${touched && error ? 'animate-shake' : ''}`}>{touched && error ? error : '\u00A0'}</div>
           <button
             type="button"
             onClick={submit}

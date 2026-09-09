@@ -20,7 +20,7 @@ export default function SplitOrStealSetupScreen({
   const notEnoughPlayers = players.length < 2;
 
   return (
-    <div className="flex min-h-screen flex-col items-center bg-cream px-6 py-16">
+    <div className="flex min-h-screen flex-col items-center bg-cream px-6 py-16 animate-enter">
       <div className="w-full max-w-md">
         <BackButton label="Back to games" onClick={onBack} />
         <p className="mt-6 font-display text-lg font-semibold text-coral">Split or Steal</p>

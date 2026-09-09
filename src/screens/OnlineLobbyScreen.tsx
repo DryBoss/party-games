@@ -58,7 +58,7 @@ export default function OnlineLobbyScreen({
 
   if (view === 'choose' || view === 'create' || view === 'join') {
     return (
-      <div className="flex min-h-screen flex-col items-center bg-cream px-6 py-16">
+      <div key={view} className="flex min-h-screen flex-col items-center bg-cream px-6 py-16 animate-enter">
         <div className="w-full max-w-md">
           <BackButton label="Change room type" onClick={onBack} />
           <p className="mt-6 font-display text-lg font-semibold text-coral">Online</p>
@@ -143,16 +143,19 @@ export default function OnlineLobbyScreen({
 
   // view === 'room'
   return (
-    <div className="flex min-h-screen flex-col items-center bg-cream px-6 py-16">
+    <div key={room.state} className="flex min-h-screen flex-col items-center bg-cream px-6 py-16 animate-enter">
       <div className="w-full max-w-md">
         <BackButton label="Change room type" onClick={onBack} />
 
         {room.state === 'connecting' && (
-          <p className="mt-10 text-lg text-ink/70">Connecting…</p>
+          <p className="mt-10 flex items-center gap-3 text-lg text-ink/70">
+            <span className="inline-block h-4 w-4 animate-spin-slow rounded-full border-2 border-ink border-t-transparent" />
+            Connecting…
+          </p>
         )}
 
         {room.state === 'error' && (
-          <div className="mt-10">
+          <div className="mt-10 animate-shake">
             <p className="font-display text-2xl font-bold text-ink">
               {room.error === 'room-not-found' ? 'Room not found' : 'Connection failed'}
             </p>
@@ -174,7 +177,7 @@ export default function OnlineLobbyScreen({
         {room.state === 'connected' && (
           <>
             <p className="mt-6 font-display text-lg font-semibold text-coral">Room code</p>
-            <p className="font-display text-5xl font-bold tracking-[0.2em] text-ink">
+            <p className="font-display text-5xl font-bold tracking-[0.2em] text-ink animate-pop">
               {room.roomCode?.toUpperCase()}
             </p>
             <p className="mt-2 text-sm text-ink/60">Share this code so others can join.</p>

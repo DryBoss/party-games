@@ -39,11 +39,11 @@ export const GAMES: GameInfo[] = [
     accent: 'lime',
   },
   {
-    id: 'drawing-duel',
-    name: 'Drawing Duel',
-    tagline: 'Sketch the prompt, let everyone else guess it.',
-    minPlayers: 3,
-    maxPlayers: 8,
+    id: 'werewolf',
+    name: 'Werewolf',
+    tagline: 'Werewolves hunt by night, the village votes by day. Who do you trust?',
+    minPlayers: 4,
+    maxPlayers: 16,
     accent: 'coral',
   },
 ];

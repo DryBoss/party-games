@@ -55,16 +55,19 @@ export default function GameSelectScreen({
 
   if (!isHost) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-cream px-6 py-16">
+      <div
+        key={hostLeft ? 'host-left' : 'waiting'}
+        className="flex min-h-screen flex-col items-center justify-center bg-cream px-6 py-16 animate-enter"
+      >
         <div className="w-full max-w-md text-center">
           <BackButton label="Leave room" onClick={onBack} />
           <span
-            className={`mx-auto mt-8 inline-flex h-14 w-14 items-center justify-center border-[3px] border-ink shadow-[6px_6px_0_0_var(--color-ink)] ${hostLeft ? 'bg-coral' : 'bg-lime'}`}
+            className={`mx-auto mt-8 inline-flex h-14 w-14 items-center justify-center border-[3px] border-ink shadow-[6px_6px_0_0_var(--color-ink)] animate-pop ${hostLeft ? 'bg-coral' : 'bg-lime'}`}
           >
             {hostLeft ? (
               <WifiOff className="h-7 w-7 text-ink" strokeWidth={2.25} />
             ) : (
-              <Hourglass className="h-7 w-7 text-ink" strokeWidth={2.25} />
+              <Hourglass className="h-7 w-7 text-ink animate-pulse-soft" strokeWidth={2.25} />
             )}
           </span>
           <h1 className="mt-6 font-display text-3xl font-bold leading-tight text-ink">
@@ -90,7 +93,7 @@ export default function GameSelectScreen({
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center bg-cream px-6 py-16">
+    <div className="flex min-h-screen flex-col items-center bg-cream px-6 py-16 animate-enter">
       <div className="w-full max-w-3xl">
         <div className="flex items-center justify-between gap-3">
           <BackButton label="Change room type" onClick={onBack} />
@@ -132,12 +135,10 @@ export default function GameSelectScreen({
         {showRoomControls && <PlayerBadges players={players} />}
 
         <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2">
-          {GAMES.map((game) => (
-            <GameCard
-              key={game.id}
-              game={game}
-              onSelect={() => onSelectGame(game.id)}
-            />
+          {GAMES.map((game, i) => (
+            <div key={game.id} className="animate-stagger" style={{ '--stagger-index': i } as React.CSSProperties}>
+              <GameCard game={game} onSelect={() => onSelectGame(game.id)} />
+            </div>
           ))}
         </div>
       </div>

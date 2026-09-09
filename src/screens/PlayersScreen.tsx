@@ -20,7 +20,7 @@ export default function PlayersScreen({ onBack, onDone }: PlayersScreenProps) {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center bg-cream px-6 py-16">
+    <div className="flex min-h-screen flex-col items-center bg-cream px-6 py-16 animate-enter">
       <div className="w-full max-w-md">
         <BackButton label="Back" onClick={onBack} />
 
@@ -72,7 +72,7 @@ export default function PlayersScreen({ onBack, onDone }: PlayersScreenProps) {
           {players.map((player) => (
             <li
               key={player.id}
-              className="flex items-center justify-between border-[3px] border-ink bg-paper px-4 py-3 shadow-[4px_4px_0_0_var(--color-ink)]"
+              className="flex items-center justify-between border-[3px] border-ink bg-paper px-4 py-3 shadow-[4px_4px_0_0_var(--color-ink)] animate-pop"
             >
               <span className="font-medium text-ink">{player.name}</span>
               <button

@@ -10,6 +10,9 @@ import SplitOrStealMultiplayer from './screens/SplitOrStealMultiplayer';
 import HangmanSetupScreen from './screens/HangmanSetupScreen';
 import HangmanLocalPlay from './screens/HangmanLocalPlay';
 import HangmanMultiplayer from './screens/HangmanMultiplayer';
+import WerewolfSetupScreen from './screens/WerewolfSetupScreen';
+import WerewolfLocalPlay from './screens/WerewolfLocalPlay';
+import WerewolfMultiplayer from './screens/WerewolfMultiplayer';
 import { PlayersProvider, usePlayers } from './state/PlayersContext';
 import { useOnlineRoom } from './lib/partykitClient';
 import { useHotspotHost, useHotspotGuest } from './lib/hotspotTransport';
@@ -25,6 +28,12 @@ import {
   DEFAULT_SETTINGS as HANGMAN_DEFAULT_SETTINGS,
 } from './games/hangman';
 import type { HangmanAction, HangmanFullSettings, HangmanState } from './games/hangman';
+import {
+  initState as initWerewolf,
+  reduce as reduceWerewolf,
+  toPublicState as toPublicWerewolf,
+} from './games/werewolf';
+import type { Role, WerewolfAction, WerewolfConfig, WerewolfPublicState } from './games/werewolf';
 import type { RoomMode } from './types/room';
 
 type AppScreen =
@@ -36,7 +45,9 @@ type AppScreen =
   | 'split-or-steal-setup'
   | 'split-or-steal-play'
   | 'hangman-setup'
-  | 'hangman-play';
+  | 'hangman-play'
+  | 'werewolf-setup'
+  | 'werewolf-play';
 
 function AppShell() {
   const [screen, setScreen] = useState<AppScreen>('mode-select');
@@ -98,7 +109,7 @@ function AppShell() {
   // only ever delivered privately to the host (enforced by the hotspot star
   // topology, and by the PartyKit server for online) — that's what makes it
   // safe for a game to use this channel for secret info like a hidden choice.
-  const { broadcast: hotspotBroadcast, onEvent: hotspotHostOnEvent } = hotspotHost;
+  const { broadcast: hotspotBroadcast, sendTo: hotspotSendTo, onEvent: hotspotHostOnEvent } = hotspotHost;
   const { sendEvent: hotspotGuestSend, onEvent: hotspotGuestOnEvent } = hotspotGuest;
   const { sendEvent: onlineSend, onEvent: onlineOnEvent } = onlineRoom;
 
@@ -112,6 +123,20 @@ function AppShell() {
       }
     },
     [mode, isHotspotHosting, hotspotBroadcast, hotspotGuestSend, onlineSend],
+  );
+
+  // Host-only: whisper to exactly one other player — needed for secrets
+  // that shouldn't broadcast to everyone (a Werewolf player's own role, a
+  // Seer's inspection result).
+  const sendToPlayer = useCallback(
+    (playerId: string, msg: unknown) => {
+      if (mode === 'hotspot') {
+        hotspotSendTo(playerId, msg);
+      } else if (mode === 'online') {
+        onlineSend({ type: 'whisper-to', targetId: playerId, payload: msg });
+      }
+    },
+    [mode, hotspotSendTo, onlineSend],
   );
 
   const onGameMessage = useCallback(
@@ -210,6 +235,78 @@ function AppShell() {
     return () => clearTimeout(timer);
   }, [isHost, mode, activeHangman?.turnDeadline, activeHangman?.phase, applyHangmanAction]);
 
+  // --- Werewolf state (multiplayer only). Unlike Split or Steal / Hangman,
+  // secrecy here is per-player (your own role, your pack, a Seer's private
+  // result) rather than one shared secret, so alongside the public
+  // broadcast, applyWerewolfAction also fires off any private `notify`
+  // messages the engine indicates. ---
+  const werewolfTrueStateRef = useRef<ReturnType<typeof initWerewolf> | null>(null);
+  const [activeWerewolf, setActiveWerewolf] = useState<WerewolfPublicState | null>(null);
+  const [werewolfSeatIds, setWerewolfSeatIds] = useState<string[] | null>(null);
+  const [werewolfConfig, setWerewolfConfig] = useState<WerewolfConfig | null>(null);
+  const [myWerewolfRole, setMyWerewolfRole] = useState<{ role: Role; packmates: string[] } | null>(null);
+  const [wolfTally, setWolfTally] = useState<Record<number, number>>({});
+  const [seerLog, setSeerLog] = useState<{ targetSeat: number; isWerewolf: boolean }[]>([]);
+
+  const applyLocalWerewolfNotify = useCallback((message: unknown) => {
+    const msg = message as {
+      type?: string;
+      votes?: Record<number, number>;
+      targetSeat?: number;
+      isWerewolf?: boolean;
+    };
+    if (msg.type === 'werewolf:wolf-tally' && msg.votes) {
+      setWolfTally(msg.votes);
+    } else if (msg.type === 'werewolf:seer-result' && msg.targetSeat !== undefined && msg.isWerewolf !== undefined) {
+      setSeerLog((prev) => [...prev, { targetSeat: msg.targetSeat as number, isWerewolf: msg.isWerewolf as boolean }]);
+    }
+  }, []);
+
+  const applyWerewolfAction = useCallback(
+    (action: WerewolfAction, seatIndex: number | null) => {
+      const trueState = werewolfTrueStateRef.current;
+      const seatIds = werewolfSeatIds;
+      if (!trueState || !seatIds) return;
+      const { state: next, error, notify } = reduceWerewolf(trueState, action, { seatIndex });
+      if (error) return;
+      werewolfTrueStateRef.current = next;
+      const pub = toPublicWerewolf(next);
+      setActiveWerewolf(pub);
+      sendGameMessage({ type: 'werewolf:state', publicState: pub, seatIds });
+      notify.forEach((n) => {
+        const targetPlayerId = seatIds[n.seat];
+        if (!targetPlayerId) return;
+        if (targetPlayerId === myId) applyLocalWerewolfNotify(n.message);
+        else sendToPlayer(targetPlayerId, n.message);
+      });
+    },
+    [werewolfSeatIds, myId, sendGameMessage, sendToPlayer, applyLocalWerewolfNotify],
+  );
+
+  const dispatchWerewolf = useCallback(
+    (action: WerewolfAction) => {
+      if (isHost) {
+        const mySeat = werewolfSeatIds && myId ? werewolfSeatIds.indexOf(myId) : -1;
+        applyWerewolfAction(action, mySeat);
+      } else {
+        sendGameMessage({ type: 'werewolf:action', action, playerId: myId });
+      }
+    },
+    [isHost, werewolfSeatIds, myId, applyWerewolfAction, sendGameMessage],
+  );
+
+  // Host: collect private action submissions from guests.
+  useEffect(() => {
+    if (!isHost || (mode !== 'hotspot' && mode !== 'online')) return;
+    return onGameMessage((data) => {
+      const msg = data as { type?: string; action?: WerewolfAction; playerId?: string };
+      if (msg.type !== 'werewolf:action' || !msg.action || !msg.playerId || !werewolfSeatIds) return;
+      const seatIndex = werewolfSeatIds.indexOf(msg.playerId);
+      if (seatIndex === -1) return;
+      applyWerewolfAction(msg.action, seatIndex);
+    });
+  }, [isHost, mode, onGameMessage, werewolfSeatIds, applyWerewolfAction]);
+
   // Guests (and host, harmlessly — it never receives its own broadcasts):
   // apply incoming game-state events so local state always reflects what
   // the host last broadcast, and jump to the right game screen when one starts.
@@ -222,6 +319,9 @@ function AppShell() {
         seatIds?: string[];
         minWordLength?: number;
         maxWordLength?: number;
+        publicState?: WerewolfPublicState;
+        role?: Role;
+        packmates?: string[];
       };
       if (
         msg.type === 'game-start' ||
@@ -240,9 +340,17 @@ function AppShell() {
           maxWordLength: msg.maxWordLength ?? HANGMAN_DEFAULT_SETTINGS.maxWordLength,
         }));
         setScreen('hangman-play');
+      } else if (msg.type === 'werewolf:state' && msg.publicState && msg.seatIds) {
+        setWerewolfSeatIds(msg.seatIds);
+        setActiveWerewolf(msg.publicState);
+        setScreen('werewolf-play');
+      } else if (msg.type === 'werewolf:role' && msg.role) {
+        setMyWerewolfRole({ role: msg.role, packmates: msg.packmates ?? [] });
+      } else if (msg.type === 'werewolf:wolf-tally' || msg.type === 'werewolf:seer-result') {
+        applyLocalWerewolfNotify(data);
       }
     });
-  }, [mode, onGameMessage]);
+  }, [mode, onGameMessage, applyLocalWerewolfNotify]);
 
   const handleModeSelect = (selected: RoomMode) => {
     setMode(selected);
@@ -267,6 +375,13 @@ function AppShell() {
     setActiveHangman(null);
     setHangmanSeatIds(null);
     setHangmanSettings(null);
+    werewolfTrueStateRef.current = null;
+    setActiveWerewolf(null);
+    setWerewolfSeatIds(null);
+    setWerewolfConfig(null);
+    setMyWerewolfRole(null);
+    setWolfTally({});
+    setSeerLog([]);
     setMode(null);
     setScreen('mode-select');
   };
@@ -276,6 +391,12 @@ function AppShell() {
     hangmanTrueStateRef.current = null;
     setActiveHangman(null);
     setHangmanSeatIds(null);
+    werewolfTrueStateRef.current = null;
+    setActiveWerewolf(null);
+    setWerewolfSeatIds(null);
+    setMyWerewolfRole(null);
+    setWolfTally({});
+    setSeerLog([]);
     setScreen('game-select');
   };
 
@@ -286,6 +407,10 @@ function AppShell() {
     }
     if (gameId === 'hangman-friends') {
       setScreen('hangman-setup');
+      return;
+    }
+    if (gameId === 'werewolf') {
+      setScreen('werewolf-setup');
       return;
     }
     // Other games aren't built yet — this is the plumbing a real game
@@ -351,6 +476,53 @@ function AppShell() {
     });
   };
 
+  const startWerewolfGame = (seatIds: string[], config: WerewolfConfig) => {
+    const initial = initWerewolf(seatIds.length, config);
+    werewolfTrueStateRef.current = initial;
+    setWerewolfSeatIds(seatIds);
+    const pub = toPublicWerewolf(initial);
+    setActiveWerewolf(pub);
+    sendGameMessage({ type: 'werewolf:state', publicState: pub, seatIds });
+
+    const nameOf = (seat: number) => roomPlayers.find((p) => p.id === seatIds[seat])?.name ?? '???';
+    seatIds.forEach((playerId, seat) => {
+      const role = initial.roles[seat];
+      const packmates =
+        role === 'werewolf'
+          ? initial.roles
+              .map((r, i) => (r === 'werewolf' && i !== seat ? nameOf(i) : null))
+              .filter((n): n is string => !!n)
+          : [];
+      if (playerId === myId) {
+        setMyWerewolfRole({ role, packmates });
+      } else {
+        sendToPlayer(playerId, { type: 'werewolf:role', role, packmates });
+      }
+    });
+  };
+
+  const handleStartWerewolf = (config: WerewolfConfig) => {
+    setWerewolfConfig(config);
+    setWolfTally({});
+    setSeerLog([]);
+    if (mode === 'single_device') {
+      setScreen('werewolf-play');
+      return;
+    }
+    startWerewolfGame(
+      roomPlayers.map((p) => p.id),
+      config,
+    );
+    setScreen('werewolf-play');
+  };
+
+  const handlePlayAgainWerewolf = () => {
+    if (!werewolfSeatIds || !werewolfConfig) return;
+    setWolfTally({});
+    setSeerLog([]);
+    startWerewolfGame(werewolfSeatIds, werewolfConfig);
+  };
+
   switch (screen) {
     case 'players':
       return (
@@ -401,7 +573,8 @@ function AppShell() {
       }
       if (!activeGame) {
         return (
-          <div className="flex min-h-screen items-center justify-center bg-cream">
+          <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-cream">
+            <span className="inline-block h-5 w-5 animate-spin-slow rounded-full border-2 border-ink border-t-transparent" />
             <p className="text-ink/50">Loading game…</p>
           </div>
         );
@@ -439,7 +612,8 @@ function AppShell() {
       }
       if (!activeHangman || !hangmanSeatIds) {
         return (
-          <div className="flex min-h-screen items-center justify-center bg-cream">
+          <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-cream">
+            <span className="inline-block h-5 w-5 animate-spin-slow rounded-full border-2 border-ink border-t-transparent" />
             <p className="text-ink/50">Loading game…</p>
           </div>
         );
@@ -456,6 +630,50 @@ function AppShell() {
           dispatch={dispatchHangman}
           onExit={handleExitGame}
           onPlayAgain={handlePlayAgainHangman}
+        />
+      );
+    case 'werewolf-setup':
+      return (
+        <WerewolfSetupScreen
+          players={mode === 'single_device' ? devicePlayers : roomPlayers}
+          onBack={() => setScreen('game-select')}
+          onStart={handleStartWerewolf}
+        />
+      );
+    case 'werewolf-play':
+      if (mode === 'single_device') {
+        if (!werewolfConfig) {
+          return (
+            <div className="flex min-h-screen items-center justify-center bg-cream">
+              <p className="text-ink/50">Loading game…</p>
+            </div>
+          );
+        }
+        return (
+          <WerewolfLocalPlay players={devicePlayers} config={werewolfConfig} onExit={handleExitGame} />
+        );
+      }
+      if (!activeWerewolf || !werewolfSeatIds) {
+        return (
+          <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-cream">
+            <span className="inline-block h-5 w-5 animate-spin-slow rounded-full border-2 border-ink border-t-transparent" />
+            <p className="text-ink/50">Loading game…</p>
+          </div>
+        );
+      }
+      return (
+        <WerewolfMultiplayer
+          publicState={activeWerewolf}
+          seatIds={werewolfSeatIds}
+          myId={myId}
+          isHost={isHost}
+          players={roomPlayers}
+          myRole={myWerewolfRole}
+          wolfTally={wolfTally}
+          seerLog={seerLog}
+          dispatch={dispatchWerewolf}
+          onExit={handleExitGame}
+          onPlayAgain={handlePlayAgainWerewolf}
         />
       );
     case 'game-select':

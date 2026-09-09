@@ -49,7 +49,7 @@ function ShareCode({ value }: { value: string }) {
   const [showText, setShowText] = useState(false);
   return (
     <div className="flex flex-col items-center gap-3">
-      <div className="border-[3px] border-ink bg-paper p-3 shadow-[4px_4px_0_0_var(--color-ink)]">
+      <div className="border-[3px] border-ink bg-paper p-3 shadow-[4px_4px_0_0_var(--color-ink)] animate-pop">
         <QRCodeSVG value={value} size={240} level="L" />
       </div>
       <button
@@ -173,7 +173,7 @@ export default function HotspotLobbyScreen({ host, guest, onBack, onReady }: Hot
 
   if (view === 'choose') {
     return (
-      <div className="flex min-h-screen flex-col items-center bg-cream px-6 py-16">
+      <div key="choose" className="flex min-h-screen flex-col items-center bg-cream px-6 py-16 animate-enter">
         <div className="w-full max-w-md">
           <BackButton label="Change room type" onClick={onBack} />
           <p className="mt-6 font-display text-lg font-semibold text-coral">Local hotspot</p>
@@ -233,7 +233,7 @@ export default function HotspotLobbyScreen({ host, guest, onBack, onReady }: Hot
 
   if (view === 'host') {
     return (
-      <div className="flex min-h-screen flex-col items-center bg-cream px-6 py-16">
+      <div key="host" className="flex min-h-screen flex-col items-center bg-cream px-6 py-16 animate-enter">
         <div className="w-full max-w-md">
           <BackButton label="Change room type" onClick={onBack} />
           <p className="mt-6 font-display text-lg font-semibold text-coral">Hosting</p>
@@ -281,7 +281,7 @@ export default function HotspotLobbyScreen({ host, guest, onBack, onReady }: Hot
               Connect device
             </button>
           </details>
-          {inviteError && <p className="mt-2 text-sm text-coral">{inviteError}</p>}
+          {inviteError && <p className="mt-2 text-sm text-coral animate-shake">{inviteError}</p>}
 
           <PlayerList players={host.players} />
 
@@ -312,7 +312,7 @@ export default function HotspotLobbyScreen({ host, guest, onBack, onReady }: Hot
 
   // view === 'join'
   return (
-    <div className="flex min-h-screen flex-col items-center bg-cream px-6 py-16">
+    <div key="join" className="flex min-h-screen flex-col items-center bg-cream px-6 py-16 animate-enter">
       <div className="w-full max-w-md">
         <BackButton label="Back" onClick={() => setView('choose')} />
         <p className="mt-6 font-display text-lg font-semibold text-coral">Joining</p>
@@ -373,7 +373,7 @@ export default function HotspotLobbyScreen({ host, guest, onBack, onReady }: Hot
                 Generate my code
               </button>
             </details>
-            {guestError && <p className="mt-2 text-sm text-coral">{guestError}</p>}
+            {guestError && <p className="mt-2 text-sm text-coral animate-shake">{guestError}</p>}
 
             {answerCode && (
               <div className="mt-6">
